@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+/* 1. Tell Tailwind to use the .dark class for dark mode instead of the OS system preference */
+@custom-variant dark (&:is(.dark *));
+
+/* 2. Define our custom CSS variables for light and dark modes */
+@layer base {
+  :root {
+    --bg-app: #f1f5f9; /* slate-100 */
+    --bg-card: #ffffff; /* white */
+    --text-main: #1e293b; /* slate-800 */
+    --text-muted: #64748b; /* slate-500 */
+    --border-color: #e2e8f0; /* slate-200 */
+  }
+
+  .dark {
+    --bg-app: #0f172a; /* slate-900 */
+    --bg-card: #1e293b; /* slate-800 */
+    --text-main: #f8fafc; /* slate-50 */
+    --text-muted: #94a3b8; /* slate-400 */
+    --border-color: #334155; /* slate-700 */
+  }
+
+  /* Apply the base background and text color to the whole app */
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+  }
+}
+
+/* 3. Inject these variables into Tailwind so you can use them like standard classes (e.g., bg-card) */
+@theme {
+  --color-app: var(--bg-app);
+  --color-card: var(--bg-card);
+  --color-main: var(--text-main);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border-color);
+}
