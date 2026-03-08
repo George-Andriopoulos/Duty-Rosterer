@@ -3,9 +3,14 @@ import { contextBridge, ipcRenderer } from "electron";
 
 // Custom APIs for renderer
 const api = {
-  // This tells Electron: "Allow React to call 'export-roster-to-word' and pass data to it"
-  exportRoster: (data: any) =>
-    ipcRenderer.invoke("export-roster-to-word", data),
+  // Tells Electron to open the native file picker
+  selectTemplate: () => ipcRenderer.invoke("select-template-file"),
+
+  // Sends BOTH the chosen file path and the generated roster data to the backend
+  exportRoster: (payload: {
+    templatePath: string;
+    rosterData: Record<string, unknown>;
+  }) => ipcRenderer.invoke("export-roster-to-word", payload),
 };
 
 if (process.contextIsolated) {

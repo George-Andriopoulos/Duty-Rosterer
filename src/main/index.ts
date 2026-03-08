@@ -1,11 +1,8 @@
 import { electronApp, is, optimizer } from "@electron-toolkit/utils";
 import Docxtemplater from "docxtemplater";
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
-// 1. NEW IMPORTS FOR WORD PROCESSING
 import fs from "fs";
-// <-- Added dialog
 import { join } from "path";
-import path from "path";
 import PizZip from "pizzip";
 
 import icon from "../../resources/icon.png?asset";
@@ -51,7 +48,6 @@ app.whenReady().then(() => {
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
@@ -60,50 +56,67 @@ app.whenReady().then(() => {
   ipcMain.on("ping", () => console.log("pong"));
 
   // ==========================================
-  // 2. OUR EXPORT ENGINE SECURELY ADDED HERE
+  // Let the user pick their template file
   // ==========================================
-  ipcMain.handle("export-roster-to-word", async (event, rosterData) => {
-    try {
-      const { canceled, filePath } = await dialog.showSaveDialog({
-        title: "Save Duty Roster",
-        defaultPath: "Duty_Roster_Draft.docx",
-        filters: [{ name: "Word Document", extensions: ["docx"] }],
-      });
+  ipcMain.handle("select-template-file", async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: "Select Baseline Word Template",
+      properties: ["openFile"],
+      filters: [{ name: "Word Documents", extensions: ["docx"] }],
+    });
 
-      if (canceled || !filePath)
-        return { success: false, error: "Cancelled by user" };
-
-      const templatePath = path.join(
-        __dirname,
-        "../../resources/baseline-template.docx"
-      );
-
-      if (!fs.existsSync(templatePath)) {
-        return {
-          success: false,
-          error: "Baseline template not found in resources folder.",
-        };
-      }
-
-      const content = fs.readFileSync(templatePath, "binary");
-      const zip = new PizZip(content);
-
-      const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true,
-      });
-
-      doc.render(rosterData);
-
-      const buf = doc.getZip().generate({ type: "nodebuffer" });
-      fs.writeFileSync(filePath, buf);
-
-      return { success: true };
-    } catch (error) {
-      console.error("Export Error:", error);
-      return { success: false, error: String(error) };
+    if (canceled || filePaths.length === 0) {
+      return { success: false };
     }
+
+    // Return the exact path of the file the user picked on their hard drive
+    return { success: true, filePath: filePaths[0] };
   });
+
+  // ==========================================
+  // OUR EXPORT ENGINE SECURELY ADDED HERE
+  // ==========================================
+  ipcMain.handle(
+    "export-roster-to-word",
+    async (event, { templatePath, rosterData }) => {
+      try {
+        if (!fs.existsSync(templatePath)) {
+          return {
+            success: false,
+            error: "The uploaded template file could not be found.",
+          };
+        }
+
+        const { canceled, filePath: savePath } = await dialog.showSaveDialog({
+          title: "Save Final Duty Roster",
+          defaultPath: "Final_Duty_Roster.docx",
+          filters: [{ name: "Word Document", extensions: ["docx"] }],
+        });
+
+        if (canceled || !savePath) {
+          return { success: false, error: "Cancelled by user" };
+        }
+
+        const content = fs.readFileSync(templatePath, "binary");
+        const zip = new PizZip(content);
+
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        doc.render(rosterData);
+
+        const buf = doc.getZip().generate({ type: "nodebuffer" });
+        fs.writeFileSync(savePath, buf);
+
+        return { success: true };
+      } catch (error) {
+        console.error("Export Error:", error);
+        return { success: false, error: String(error) };
+      }
+    }
+  );
   // ==========================================
 
   createWindow();
@@ -123,6 +136,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
