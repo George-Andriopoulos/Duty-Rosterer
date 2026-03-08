@@ -1,5 +1,7 @@
 import { JSX, ReactNode, useEffect, useState } from "react";
 
+import { PersonnelList } from "@renderer/features/personnel-list";
+
 import { TableFilter } from "../components/table-filter";
 
 interface MainLayoutProps {
@@ -32,7 +34,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <p className="text-muted text-sm">Loading personnel data...</p>
+          <PersonnelList />
         </div>
       </aside>
 
