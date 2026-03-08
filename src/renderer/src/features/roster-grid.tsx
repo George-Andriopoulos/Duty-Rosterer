@@ -1,6 +1,9 @@
-import { JSX, useMemo } from "react";
+import { JSX, useMemo, useState } from "react";
 
 import { ShiftAssignment, useRosterCache } from "../store/RosterContext";
+import { AssignmentModal } from "./assignment-modal";
+
+// <-- Import the modal
 
 // Define the core shifts based on your official layout photo
 const SHIFT_COLUMNS = [
@@ -13,7 +16,18 @@ const SHIFT_COLUMNS = [
 const DAYS_IN_MONTH = Array.from({ length: 31 }, (_, i) => i + 1);
 
 export function RosterGrid(): JSX.Element {
-  const { personnel, assignments, assignShift } = useRosterCache();
+  const { personnel, assignments } = useRosterCache();
+
+  // State to control our pure white modal
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    day: number | null;
+    shiftId: string | null;
+  }>({
+    isOpen: false,
+    day: null,
+    shiftId: null,
+  });
 
   // HIGH-PERFORMANCE OPTIMIZATION:
   // We create an O(1) lookup map so 150+ cells don't have to run .find() on every render.
@@ -81,10 +95,12 @@ export function RosterGrid(): JSX.Element {
                       {/* Interactive Cell Wrapper */}
                       <button
                         onClick={() => {
-                          // Temporary test logic: click a cell to assign the first available person
-                          if (!isAssigned) {
-                            assignShift(day, shift.id, personnel[0].id);
-                          }
+                          // Open the modal with the specific day and shift
+                          setModalState({
+                            isOpen: true,
+                            day,
+                            shiftId: shift.id,
+                          });
                         }}
                         className={`block h-full w-full p-3 text-left transition-all ${
                           isAssigned
@@ -104,6 +120,16 @@ export function RosterGrid(): JSX.Element {
           </tbody>
         </table>
       </div>
+
+      {/* Render the modal at the bottom of the component */}
+      <AssignmentModal
+        isOpen={modalState.isOpen}
+        day={modalState.day}
+        shiftId={modalState.shiftId}
+        onClose={() =>
+          setModalState({ isOpen: false, day: null, shiftId: null })
+        }
+      />
     </div>
   );
 }
