@@ -1,6 +1,6 @@
 import { JSX } from "react";
 
-import { RosterGrid } from "./features/roster-grid";
+import { DayReviewTable } from "./features/day-review-table";
 import { MainLayout } from "./layout/MainLayout";
 import { RosterProvider } from "./store/RosterContext";
 
@@ -8,8 +8,7 @@ function App(): JSX.Element {
   return (
     <RosterProvider>
       <MainLayout>
-        {/* We simply drop our high-performance grid right here */}
-        <RosterGrid />
+        <DayReviewTable />
       </MainLayout>
     </RosterProvider>
   );

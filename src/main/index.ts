@@ -4,14 +4,14 @@ import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 import fs from "fs";
 import { join } from "path";
 import PizZip from "pizzip";
+import * as XLSX from "xlsx";
 
 import icon from "../../resources/icon.png?asset";
 
 function createWindow(): void {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1100,
+    height: 750,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === "linux" ? { icon } : {}),
@@ -30,8 +30,6 @@ function createWindow(): void {
     return { action: "deny" };
   });
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
     mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
@@ -39,28 +37,20 @@ function createWindow(): void {
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId("com.electron");
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
 
-  // IPC test
-  ipcMain.on("ping", () => console.log("pong"));
-
   // ==========================================
-  // Let the user pick their template file
+  // 1) SELECT & SCAN WORD TEMPLATE
+  //    Opens a .docx, extracts every {tag}
   // ==========================================
-  ipcMain.handle("select-template-file", async () => {
+  ipcMain.handle("select-and-scan-template", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: "Select Baseline Word Template",
+      title: "Select Word Template (.docx with {tags})",
       properties: ["openFile"],
       filters: [{ name: "Word Documents", extensions: ["docx"] }],
     });
@@ -69,68 +59,168 @@ app.whenReady().then(() => {
       return { success: false };
     }
 
-    // Return the exact path of the file the user picked on their hard drive
-    return { success: true, filePath: filePaths[0] };
+    try {
+      const templatePath = filePaths[0];
+      const content = fs.readFileSync(templatePath, "binary");
+      const zip = new PizZip(content);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+      });
+
+      const text = doc.getFullText();
+      const tagRegex = /\{([^{}]+)\}/g;
+      const tags: string[] = [];
+      let match: RegExpExecArray | null;
+      while ((match = tagRegex.exec(text)) !== null) {
+        tags.push(match[1]);
+      }
+
+      const uniqueTags = [...new Set(tags)];
+
+      return {
+        success: true,
+        filePath: templatePath,
+        tags: uniqueTags,
+      };
+    } catch (error) {
+      console.error("Template scan error:", error);
+      return { success: false, error: String(error) };
+    }
   });
 
   // ==========================================
-  // OUR EXPORT ENGINE SECURELY ADDED HERE
+  // 2) SELECT & PARSE EXCEL SCHEDULE
+  //    Header row: Name | Rank | 1 | 2 | ... | 31
+  //    Data rows:  ΞΕΝΟΥ | ΑΡΧ. | kentro_rt_06 | day_off | ...
+  // ==========================================
+  ipcMain.handle("select-and-parse-excel", async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: "Select Excel Schedule",
+      properties: ["openFile"],
+      filters: [{ name: "Excel Files", extensions: ["xlsx", "xls", "csv"] }],
+    });
+
+    if (canceled || filePaths.length === 0) {
+      return { success: false };
+    }
+
+    try {
+      const workbook = XLSX.readFile(filePaths[0]);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+        header: 1,
+        defval: "",
+      });
+
+      if (rows.length < 2) {
+        return { success: false, error: "Excel file appears empty." };
+      }
+
+      const headers = rows[0].map((h) => String(h).trim());
+      const personnel: Array<{ name: string; rank: string }> = [];
+      const schedule: Record<string, Record<string, string>> = {};
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const name = String(row[0] || "").trim();
+        const rank = String(row[1] || "").trim();
+
+        if (!name) continue;
+
+        const fullName = rank ? `${rank} ${name}` : name;
+        personnel.push({ name, rank });
+        schedule[fullName] = {};
+
+        for (let col = 2; col < headers.length; col++) {
+          const day = String(headers[col]).trim();
+          const cellValue =
+            col < row.length ? String(row[col] || "").trim() : "";
+          if (cellValue) {
+            schedule[fullName][day] = cellValue;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        filePath: filePaths[0],
+        personnel,
+        schedule,
+        totalDays: Math.max(0, headers.length - 2),
+      };
+    } catch (error) {
+      console.error("Excel parse error:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // ==========================================
+  // 3) EXPORT — Generate one .docx per day
   // ==========================================
   ipcMain.handle(
-    "export-roster-to-word",
-    async (event, { templatePath, rosterData }) => {
+    "export-days",
+    async (
+      _event,
+      {
+        templatePath,
+        dayDataMap,
+      }: {
+        templatePath: string;
+        dayDataMap: Record<string, Record<string, string>>;
+      }
+    ) => {
       try {
         if (!fs.existsSync(templatePath)) {
-          return {
-            success: false,
-            error: "The uploaded template file could not be found.",
-          };
+          return { success: false, error: "Template file not found on disk." };
         }
 
-        const { canceled, filePath: savePath } = await dialog.showSaveDialog({
-          title: "Save Final Duty Roster",
-          defaultPath: "Final_Duty_Roster.docx",
-          filters: [{ name: "Word Document", extensions: ["docx"] }],
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+          title: "Choose Output Folder",
+          properties: ["openDirectory"],
         });
 
-        if (canceled || !savePath) {
-          return { success: false, error: "Cancelled by user" };
+        if (canceled || filePaths.length === 0) {
+          return { success: false, error: "Cancelled by user." };
         }
 
-        const content = fs.readFileSync(templatePath, "binary");
-        const zip = new PizZip(content);
+        const outputDir = filePaths[0];
+        const templateContent = fs.readFileSync(templatePath, "binary");
+        const days = Object.keys(dayDataMap).sort(
+          (a, b) => Number(a) - Number(b)
+        );
 
-        const doc = new Docxtemplater(zip, {
-          paragraphLoop: true,
-          linebreaks: true,
-        });
+        for (const day of days) {
+          const zip = new PizZip(templateContent);
+          const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+          });
 
-        doc.render(rosterData);
+          doc.render(dayDataMap[day]);
 
-        const buf = doc.getZip().generate({ type: "nodebuffer" });
-        fs.writeFileSync(savePath, buf);
+          const buf = doc.getZip().generate({ type: "nodebuffer" });
+          const fileName = `Duty_Roster_Day_${day.padStart(2, "0")}.docx`;
+          fs.writeFileSync(join(outputDir, fileName), buf);
+        }
 
-        return { success: true };
+        return { success: true, count: days.length, outputDir };
       } catch (error) {
-        console.error("Export Error:", error);
+        console.error("Export error:", error);
         return { success: false, error: String(error) };
       }
     }
   );
-  // ==========================================
 
   createWindow();
 
-  app.on("activate", function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();

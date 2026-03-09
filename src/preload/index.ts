@@ -1,16 +1,15 @@
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer } from "electron";
 
-// Custom APIs for renderer
 const api = {
-  // Tells Electron to open the native file picker
-  selectTemplate: () => ipcRenderer.invoke("select-template-file"),
+  scanTemplate: () => ipcRenderer.invoke("select-and-scan-template"),
 
-  // Sends BOTH the chosen file path and the generated roster data to the backend
-  exportRoster: (payload: {
+  parseExcel: () => ipcRenderer.invoke("select-and-parse-excel"),
+
+  exportDays: (payload: {
     templatePath: string;
-    rosterData: Record<string, unknown>;
-  }) => ipcRenderer.invoke("export-roster-to-word", payload),
+    dayDataMap: Record<string, Record<string, string>>;
+  }) => ipcRenderer.invoke("export-days", payload),
 };
 
 if (process.contextIsolated) {
