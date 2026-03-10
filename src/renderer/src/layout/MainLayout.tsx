@@ -40,6 +40,8 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     const result = await window.api.scanTemplate();
     if (result.success && result.filePath && result.tags) {
       setTemplate(result.filePath, result.tags);
+    } else if (result.error) {
+      alert(result.error);
     }
   };
 

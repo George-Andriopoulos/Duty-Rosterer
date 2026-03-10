@@ -52,15 +52,28 @@ app.whenReady().then(() => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: "Select Word Template (.docx with {tags})",
       properties: ["openFile"],
-      filters: [{ name: "Word Documents", extensions: ["docx"] }],
+      filters: [
+        { name: "Word Documents", extensions: ["docx", "doc"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
     });
 
     if (canceled || filePaths.length === 0) {
       return { success: false };
     }
 
+    const templatePath = filePaths[0];
+
+    // Docxtemplater only supports .docx (ZIP-based) — reject .doc with a helpful message
+    if (!templatePath.toLowerCase().endsWith(".docx")) {
+      return {
+        success: false,
+        error:
+          "Only .docx files are supported. Please open your .doc file in Word or LibreOffice and Save As → Word 2010-365 (.docx).",
+      };
+    }
+
     try {
-      const templatePath = filePaths[0];
       const content = fs.readFileSync(templatePath, "binary");
       const zip = new PizZip(content);
       const doc = new Docxtemplater(zip, {
@@ -98,7 +111,10 @@ app.whenReady().then(() => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: "Select Excel Schedule",
       properties: ["openFile"],
-      filters: [{ name: "Excel Files", extensions: ["xlsx", "xls", "csv"] }],
+      filters: [
+        { name: "Excel Files", extensions: ["xlsx", "xls", "csv", "ods"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
     });
 
     if (canceled || filePaths.length === 0) {
