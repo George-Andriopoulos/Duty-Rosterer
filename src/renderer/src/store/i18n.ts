@@ -1,58 +1,41 @@
 export type Locale = "en" | "el";
 
 interface Translations {
-  // Header
   appTitle: string;
   appSubtitle: string;
-
-  // Upload zones
   wordTemplate: string;
   wordTemplateDesc: string;
   excelSchedule: string;
   excelScheduleDesc: string;
   tagsFound: (n: number) => string;
-  personnelDays: (p: number, d: number) => string;
-
-  // Day navigator
+  daysLoaded: (d: number) => string;
   day: string;
   days: string;
-
-  // Export
   exportAll: (n: number) => string;
-  exportDay: (d: number) => string;
-  exportDays: (from: number, to: number) => string;
+  exportDay: (d: string) => string;
+  exportRange: (from: string, to: string) => string;
   exporting: string;
   from: string;
   to: string;
-
-  // Review table
   noDataTitle: string;
   noDataDesc: string;
-  positionsFilled: (filled: number, total: number) => string;
+  positionsFilled: (f: number, t: number) => string;
   unfilled: (n: number) => string;
-  templateTag: string;
+  tag: string;
+  description: string;
   assignedPerson: string;
   edit: string;
-  unfilledLabel: string;
-
-  // Edit modal
+  emptySlot: string;
   editAssignment: string;
-  searchPersonnel: string;
-  noPersonnelFound: string;
+  searchPlaceholder: string;
+  noResults: string;
   current: string;
   clearAssignment: string;
-
-  // Unmatched warning
-  unmatchedTitle: (n: number) => string;
-  unmatchedDesc: string;
-
-  // Alerts
   alertUploadTemplate: string;
   alertUploadExcel: string;
   alertNoData: string;
-  alertExportSuccess: (count: number, dir: string) => string;
+  alertExportOk: (count: number, dir: string) => string;
   alertExportFail: string;
-  alertDocxOnly: string;
 }
 
 const en: Translations = {
@@ -61,14 +44,14 @@ const en: Translations = {
   wordTemplate: "Word Template",
   wordTemplateDesc: "Select .docx with {tags} for each position",
   excelSchedule: "Excel Schedule",
-  excelScheduleDesc: "Select .xlsx with personnel assignments",
+  excelScheduleDesc: "Select .xlsx with position-based assignments",
   tagsFound: (n) => `${n} tags found`,
-  personnelDays: (p, d) => `${p} personnel · ${d} days`,
+  daysLoaded: (d) => `${d} days loaded`,
   day: "Day",
   days: "days",
   exportAll: (n) => `Export All ${n} Days`,
   exportDay: (d) => `Export Day ${d}`,
-  exportDays: (from, to) => `Export Days ${from}–${to}`,
+  exportRange: (f, t) => `Export Days ${f}–${t}`,
   exporting: "Exporting...",
   from: "From:",
   to: "To:",
@@ -77,26 +60,22 @@ const en: Translations = {
     "Upload a Word template and an Excel schedule above to start reviewing assignments.",
   positionsFilled: (f, t) => `${f} / ${t} positions filled`,
   unfilled: (n) => `${n} unfilled`,
-  templateTag: "Template Tag",
+  tag: "Tag",
+  description: "Position",
   assignedPerson: "Assigned Person",
   edit: "Edit",
-  unfilledLabel: "— Unfilled —",
+  emptySlot: "—",
   editAssignment: "Edit Assignment",
-  searchPersonnel: "Search personnel...",
-  noPersonnelFound: "No personnel found",
+  searchPlaceholder: "Type a name...",
+  noResults: "No match",
   current: "Current",
-  clearAssignment: "Clear Assignment",
-  unmatchedTitle: (n) => `Unmatched Assignments (${n})`,
-  unmatchedDesc:
-    "These people have a tag in the Excel that doesn't match any tag in your Word template:",
+  clearAssignment: "Clear",
   alertUploadTemplate: "Please upload a Word template first.",
   alertUploadExcel: "Please upload an Excel schedule first.",
   alertNoData: "No days to export in the selected range.",
-  alertExportSuccess: (count, dir) =>
-    `Done! Generated ${count} document${count !== 1 ? "s" : ""} in:\n${dir}`,
+  alertExportOk: (c, d) =>
+    `Done! ${c} document${c !== 1 ? "s" : ""} saved in:\n${d}`,
   alertExportFail: "Export failed: ",
-  alertDocxOnly:
-    "Only .docx files are supported. Please open your .doc file in Word or LibreOffice and Save As → Word 2010-365 (.docx).",
 };
 
 const el: Translations = {
@@ -105,42 +84,36 @@ const el: Translations = {
   wordTemplate: "Πρότυπο Word",
   wordTemplateDesc: "Επιλέξτε .docx με {tags} σε κάθε θέση",
   excelSchedule: "Πρόγραμμα Excel",
-  excelScheduleDesc: "Επιλέξτε .xlsx με τις αναθέσεις προσωπικού",
+  excelScheduleDesc: "Επιλέξτε .xlsx με αναθέσεις ανά θέση",
   tagsFound: (n) => `${n} tags βρέθηκαν`,
-  personnelDays: (p, d) => `${p} άτομα · ${d} ημέρες`,
+  daysLoaded: (d) => `${d} ημέρες`,
   day: "Ημέρα",
   days: "ημέρες",
   exportAll: (n) => `Εξαγωγή ${n} Ημερών`,
   exportDay: (d) => `Εξαγωγή Ημέρας ${d}`,
-  exportDays: (from, to) => `Εξαγωγή Ημερών ${from}–${to}`,
+  exportRange: (f, t) => `Εξαγωγή ${f}–${t}`,
   exporting: "Εξαγωγή...",
   from: "Από:",
   to: "Έως:",
   noDataTitle: "Δεν υπάρχουν δεδομένα",
-  noDataDesc:
-    "Ανεβάστε ένα πρότυπο Word και ένα πρόγραμμα Excel για να ξεκινήσετε τον έλεγχο.",
+  noDataDesc: "Ανεβάστε πρότυπο Word και πρόγραμμα Excel για να ξεκινήσετε.",
   positionsFilled: (f, t) => `${f} / ${t} θέσεις καλυμμένες`,
   unfilled: (n) => `${n} κενές`,
-  templateTag: "Tag Προτύπου",
-  assignedPerson: "Ανατεθειμένο Πρόσωπο",
+  tag: "Tag",
+  description: "Θέση",
+  assignedPerson: "Πρόσωπο",
   edit: "Επεξ.",
-  unfilledLabel: "— Κενή —",
-  editAssignment: "Επεξεργασία Ανάθεσης",
-  searchPersonnel: "Αναζήτηση προσωπικού...",
-  noPersonnelFound: "Δεν βρέθηκε προσωπικό",
+  emptySlot: "—",
+  editAssignment: "Επεξεργασία",
+  searchPlaceholder: "Πληκτρολογήστε όνομα...",
+  noResults: "Χωρίς αποτέλεσμα",
   current: "Τρέχων",
-  clearAssignment: "Αφαίρεση Ανάθεσης",
-  unmatchedTitle: (n) => `Μη αντιστοιχισμένες αναθέσεις (${n})`,
-  unmatchedDesc:
-    "Αυτά τα άτομα έχουν tag στο Excel που δεν αντιστοιχεί σε κανένα tag του Word:",
-  alertUploadTemplate: "Παρακαλώ ανεβάστε πρώτα ένα πρότυπο Word.",
-  alertUploadExcel: "Παρακαλώ ανεβάστε πρώτα ένα πρόγραμμα Excel.",
-  alertNoData: "Δεν υπάρχουν ημέρες για εξαγωγή στο επιλεγμένο εύρος.",
-  alertExportSuccess: (count, dir) =>
-    `Ολοκληρώθηκε! Δημιουργήθηκαν ${count} έγγραφα στο:\n${dir}`,
-  alertExportFail: "Αποτυχία εξαγωγής: ",
-  alertDocxOnly:
-    "Μόνο αρχεία .docx υποστηρίζονται. Ανοίξτε το .doc αρχείο σας στο Word ή LibreOffice και κάντε Αποθήκευση ως → Word 2010-365 (.docx).",
+  clearAssignment: "Αφαίρεση",
+  alertUploadTemplate: "Ανεβάστε πρώτα ένα πρότυπο Word.",
+  alertUploadExcel: "Ανεβάστε πρώτα ένα πρόγραμμα Excel.",
+  alertNoData: "Δεν υπάρχουν ημέρες στο επιλεγμένο εύρος.",
+  alertExportOk: (c, d) => `Ολοκληρώθηκε! ${c} έγγραφα στο:\n${d}`,
+  alertExportFail: "Αποτυχία: ",
 };
 
 const translations: Record<Locale, Translations> = { en, el };

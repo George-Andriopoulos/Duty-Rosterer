@@ -10,9 +10,9 @@ interface TemplateScanResult {
 interface ExcelParseResult {
   success: boolean;
   filePath?: string;
-  personnel?: Array<{ name: string; rank: string }>;
   schedule?: Record<string, Record<string, string>>;
-  totalDays?: number;
+  tagDescriptions?: Record<string, string>;
+  dayNumbers?: string[];
   error?: string;
 }
 

@@ -19,7 +19,6 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     templateTags,
     setTemplate,
     clearTemplate,
-    personnel,
     setExcelData,
     clearExcel,
     availableDays,
@@ -29,10 +28,8 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     isReady,
   } = useRosterCache();
 
-  const firstDay = availableDays.length > 0 ? availableDays[0] : 1;
-  const lastDay =
-    availableDays.length > 0 ? availableDays[availableDays.length - 1] : 1;
-
+  const firstDay = availableDays[0] ?? "1";
+  const lastDay = availableDays[availableDays.length - 1] ?? "1";
   const [exportFrom, setExportFrom] = useState(firstDay);
   const [exportTo, setExportTo] = useState(lastDay);
 
@@ -42,11 +39,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
   }, [firstDay, lastDay]);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    document.documentElement.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
   const handleUploadTemplate = async (): Promise<void> => {
@@ -60,11 +53,14 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
 
   const handleUploadExcel = async (): Promise<void> => {
     const result = await window.api.parseExcel();
-    if (result.success && result.personnel && result.schedule) {
-      const dayNumbers = extractDayNumbers(result.schedule);
-      setExcelData(result.personnel, result.schedule, dayNumbers);
+    if (result.success && result.schedule && result.dayNumbers) {
+      setExcelData(
+        result.schedule,
+        result.tagDescriptions ?? {},
+        result.dayNumbers
+      );
     } else if (result.error) {
-      alert("Excel error: " + result.error);
+      alert(result.error);
     }
   };
 
@@ -73,7 +69,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
       alert(t.alertUploadTemplate);
       return;
     }
-    if (personnel.length === 0) {
+    if (availableDays.length === 0) {
       alert(t.alertUploadExcel);
       return;
     }
@@ -81,82 +77,69 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     setIsExporting(true);
     try {
       const dayDataMap = getExportData(exportFrom, exportTo);
-      const dayCount = Object.keys(dayDataMap).length;
-
-      if (dayCount === 0) {
+      if (Object.keys(dayDataMap).length === 0) {
         alert(t.alertNoData);
         setIsExporting(false);
         return;
       }
 
-      const result = await window.api.exportDays({
-        templatePath,
-        dayDataMap,
-      });
-
+      const result = await window.api.exportDays({ templatePath, dayDataMap });
       if (result.success) {
-        alert(t.alertExportSuccess(result.count ?? 0, result.outputDir ?? ""));
+        alert(t.alertExportOk(result.count ?? 0, result.outputDir ?? ""));
       } else {
         alert(t.alertExportFail + result.error);
       }
-    } catch (error) {
-      console.error("Export error:", error);
-      alert(t.alertExportFail + String(error));
+    } catch (e) {
+      alert(t.alertExportFail + String(e));
     } finally {
       setIsExporting(false);
     }
   };
 
   const templateStatus = templatePath ? t.tagsFound(templateTags.length) : null;
-
   const excelStatus =
-    personnel.length > 0
-      ? t.personnelDays(personnel.length, availableDays.length)
-      : null;
+    availableDays.length > 0 ? t.daysLoaded(availableDays.length) : null;
 
-  const totalDays = availableDays.length;
-
-  // Build export button label
   const exportLabel = isExporting
     ? t.exporting
     : exportFrom === firstDay && exportTo === lastDay
-      ? t.exportAll(totalDays)
+      ? t.exportAll(availableDays.length)
       : exportFrom === exportTo
         ? t.exportDay(exportFrom)
-        : t.exportDays(exportFrom, exportTo);
+        : t.exportRange(exportFrom, exportTo);
 
   return (
     <div className="bg-app text-main flex h-screen w-full flex-col overflow-hidden transition-colors duration-300">
       {/* TOP BAR */}
-      <header className="border-border bg-card shrink-0 border-b shadow-sm transition-colors duration-300">
-        <div className="flex items-center justify-between px-6 pt-4 pb-3">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-xl font-black tracking-tight">{t.appTitle}</h1>
-            <span className="text-muted text-xs font-medium">
+      <header className="border-border bg-card shrink-0 border-b shadow-sm">
+        {/* Title row */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-2 sm:px-6 sm:pt-4 sm:pb-3">
+          <div className="flex flex-col gap-0 sm:flex-row sm:items-baseline sm:gap-3">
+            <h1 className="text-lg font-black tracking-tight sm:text-xl">
+              {t.appTitle}
+            </h1>
+            <span className="text-muted text-[10px] font-medium sm:text-xs">
               {t.appSubtitle}
             </span>
           </div>
-
-          <div className="flex items-center gap-2">
-            {/* Language toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setLocale(locale === "en" ? "el" : "en")}
-              className="rounded-md bg-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              className="rounded-md bg-slate-200 px-2 py-1.5 text-[10px] font-bold text-slate-700 transition-colors hover:bg-slate-300 sm:text-xs dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
               {locale === "en" ? "🇬🇷 ΕΛ" : "🇬🇧 EN"}
             </button>
-
-            {/* Dark mode toggle */}
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="rounded-md bg-slate-200 p-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              className="rounded-md bg-slate-200 p-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300 sm:p-2 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
               {isDarkMode ? "☀️" : "🌙"}
             </button>
           </div>
         </div>
 
-        <div className="flex gap-3 px-6 pb-4">
+        {/* Upload zones — stack on small screens */}
+        <div className="flex flex-col gap-2 px-4 pb-3 sm:flex-row sm:gap-3 sm:px-6 sm:pb-4">
           <FileUploadZone
             icon="📄"
             title={t.wordTemplate}
@@ -176,22 +159,24 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
         </div>
       </header>
 
-      {/* TOOLBAR */}
+      {/* TOOLBAR — responsive wrap */}
       {isReady && (
-        <div className="border-border bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-6 py-3 shadow-sm">
+        <div className="border-border bg-card flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2 shadow-sm sm:gap-3 sm:px-6 sm:py-3">
           <DayNavigator
             availableDays={availableDays}
             currentDay={selectedDay}
             onDayChange={setSelectedDay}
           />
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-muted text-xs font-medium">{t.from}</label>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5">
+              <label className="text-muted text-[10px] font-medium sm:text-xs">
+                {t.from}
+              </label>
               <select
                 value={exportFrom}
-                onChange={(e) => setExportFrom(Number(e.target.value))}
-                className="text-main bg-card rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                onChange={(e) => setExportFrom(e.target.value)}
+                className="text-main bg-card rounded-md border border-slate-300 px-1.5 py-1 text-[10px] font-medium sm:px-2 sm:py-1.5 sm:text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
               >
                 {availableDays.map((d) => (
                   <option
@@ -203,15 +188,16 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
                   </option>
                 ))}
               </select>
-
-              <label className="text-muted text-xs font-medium">{t.to}</label>
+              <label className="text-muted text-[10px] font-medium sm:text-xs">
+                {t.to}
+              </label>
               <select
                 value={exportTo}
-                onChange={(e) => setExportTo(Number(e.target.value))}
-                className="text-main bg-card rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                onChange={(e) => setExportTo(e.target.value)}
+                className="text-main bg-card rounded-md border border-slate-300 px-1.5 py-1 text-[10px] font-medium sm:px-2 sm:py-1.5 sm:text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
               >
                 {availableDays
-                  .filter((d) => d >= exportFrom)
+                  .filter((d) => Number(d) >= Number(exportFrom))
                   .map((d) => (
                     <option
                       key={d}
@@ -223,11 +209,10 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
                   ))}
               </select>
             </div>
-
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-wait disabled:opacity-60"
+              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-60 sm:px-5 sm:py-2.5 sm:text-sm"
             >
               {exportLabel}
             </button>
@@ -235,25 +220,8 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
         </div>
       )}
 
-      {/* MAIN CONTENT */}
-      <main className="bg-app flex-1 overflow-auto p-6 transition-colors duration-300">
-        {children}
-      </main>
+      {/* CONTENT */}
+      <main className="bg-app flex-1 overflow-auto p-4 sm:p-6">{children}</main>
     </div>
   );
-}
-
-function extractDayNumbers(
-  schedule: Record<string, Record<string, string>>
-): number[] {
-  const daySet = new Set<number>();
-  for (const personSchedule of Object.values(schedule)) {
-    for (const dayStr of Object.keys(personSchedule)) {
-      const num = Number(dayStr);
-      if (!isNaN(num) && num > 0) {
-        daySet.add(num);
-      }
-    }
-  }
-  return Array.from(daySet).sort((a, b) => a - b);
 }

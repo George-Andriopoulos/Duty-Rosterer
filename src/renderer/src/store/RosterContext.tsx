@@ -8,65 +8,42 @@ import {
   useState,
 } from "react";
 
-// ── Types ──────────────────────────────────────────────
-
-export interface PersonnelEntry {
-  name: string;
-  rank: string;
-  fullName: string;
-}
-
+/** schedule[dayNumber] = { tag: name, ... } — direct from Excel */
 type Schedule = Record<string, Record<string, string>>;
 type Edits = Record<string, string>;
 
-// ── Context shape ──────────────────────────────────────
-
 interface RosterCache {
-  // Template state
   templatePath: string | null;
   templateTags: string[];
   setTemplate: (path: string, tags: string[]) => void;
   clearTemplate: () => void;
 
-  // Excel state
-  personnel: PersonnelEntry[];
   schedule: Schedule;
-  /** The actual day numbers found in the Excel (e.g. [1,2,3,4,5]) */
-  availableDays: number[];
+  tagDescriptions: Record<string, string>;
+  availableDays: string[];
   setExcelData: (
-    personnel: Array<{ name: string; rank: string }>,
     schedule: Schedule,
-    dayNumbers: number[]
+    tagDescriptions: Record<string, string>,
+    dayNumbers: string[]
   ) => void;
   clearExcel: () => void;
 
-  // Navigation
-  selectedDay: number;
-  setSelectedDay: (day: number) => void;
+  selectedDay: string;
+  setSelectedDay: (day: string) => void;
 
-  // Per-day data
-  getDayAssignments: (day: number) => Record<string, string>;
-  getUnmatchedPersonnel: (
-    day: number
-  ) => Array<{ fullName: string; tag: string }>;
+  getDayAssignments: (day: string) => Record<string, string>;
+  editAssignment: (day: string, tag: string, value: string) => void;
+  clearAssignment: (day: string, tag: string) => void;
 
-  // Editing
-  editAssignment: (day: number, tag: string, fullName: string) => void;
-  clearAssignment: (day: number, tag: string) => void;
-
-  // Export — now accepts a range
   getExportData: (
-    fromDay: number,
-    toDay: number
+    fromDay: string,
+    toDay: string
   ) => Record<string, Record<string, string>>;
 
-  // Status
   isReady: boolean;
 }
 
 const RosterContext = createContext<RosterCache | undefined>(undefined);
-
-// ── Provider ───────────────────────────────────────────
 
 export function RosterProvider({
   children,
@@ -75,13 +52,15 @@ export function RosterProvider({
 }): JSX.Element {
   const [templatePath, setTemplatePath] = useState<string | null>(null);
   const [templateTags, setTemplateTags] = useState<string[]>([]);
-  const [personnel, setPersonnel] = useState<PersonnelEntry[]>([]);
   const [schedule, setSchedule] = useState<Schedule>({});
-  const [availableDays, setAvailableDays] = useState<number[]>([]);
-  const [selectedDay, setSelectedDay] = useState(1);
+  const [tagDescriptions, setTagDescriptions] = useState<
+    Record<string, string>
+  >({});
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string>("1");
   const [edits, setEdits] = useState<Edits>({});
 
-  const isReady = templatePath !== null && personnel.length > 0;
+  const isReady = templatePath !== null && Object.keys(schedule).length > 0;
 
   const setTemplate = useCallback((path: string, tags: string[]) => {
     setTemplatePath(path);
@@ -97,59 +76,60 @@ export function RosterProvider({
 
   const setExcelData = useCallback(
     (
-      rawPersonnel: Array<{ name: string; rank: string }>,
       newSchedule: Schedule,
-      dayNumbers: number[]
+      newDescriptions: Record<string, string>,
+      dayNumbers: string[]
     ) => {
-      const entries: PersonnelEntry[] = rawPersonnel.map((p) => ({
-        name: p.name,
-        rank: p.rank,
-        fullName: p.rank ? `${p.rank} ${p.name}` : p.name,
-      }));
-      setPersonnel(entries);
       setSchedule(newSchedule);
+      setTagDescriptions(newDescriptions);
       setAvailableDays(dayNumbers);
       setEdits({});
-
-      // Auto-select the first available day
-      if (dayNumbers.length > 0) {
-        setSelectedDay(dayNumbers[0]);
-      }
+      if (dayNumbers.length > 0) setSelectedDay(dayNumbers[0]);
     },
     []
   );
 
   const clearExcel = useCallback(() => {
-    setPersonnel([]);
     setSchedule({});
+    setTagDescriptions({});
     setAvailableDays([]);
     setEdits({});
-    setSelectedDay(1);
+    setSelectedDay("1");
   }, []);
 
+  /**
+   * Build assignments for one day:
+   * 1. Start with all template tags → ""
+   * 2. Fill from Excel schedule
+   * 3. Overlay manual edits
+   */
   const getDayAssignments = useCallback(
-    (day: number): Record<string, string> => {
+    (day: string): Record<string, string> => {
       const result: Record<string, string> = {};
 
+      // Initialize every template tag as empty string
       for (const tag of templateTags) {
         result[tag] = "";
       }
 
-      const dayStr = String(day);
-      for (const [fullName, personSchedule] of Object.entries(schedule)) {
-        const tag = personSchedule[dayStr];
-        if (tag && tag in result) {
-          result[tag] = fullName;
+      // Fill from Excel
+      const dayData = schedule[day];
+      if (dayData) {
+        for (const [tag, name] of Object.entries(dayData)) {
+          if (tag in result) {
+            result[tag] = name;
+          }
         }
       }
 
-      for (const [key, fullName] of Object.entries(edits)) {
-        const separatorIdx = key.indexOf("::");
-        if (separatorIdx === -1) continue;
-        const editDay = key.slice(0, separatorIdx);
-        const editTag = key.slice(separatorIdx + 2);
-        if (editDay === dayStr && editTag in result) {
-          result[editTag] = fullName;
+      // Overlay edits
+      for (const [key, value] of Object.entries(edits)) {
+        const sep = key.indexOf("::");
+        if (sep === -1) continue;
+        const editDay = key.slice(0, sep);
+        const editTag = key.slice(sep + 2);
+        if (editDay === day && editTag in result) {
+          result[editTag] = value;
         }
       }
 
@@ -158,50 +138,34 @@ export function RosterProvider({
     [templateTags, schedule, edits]
   );
 
-  const getUnmatchedPersonnel = useCallback(
-    (day: number): Array<{ fullName: string; tag: string }> => {
-      const dayStr = String(day);
-      const tagSet = new Set(templateTags);
-      const unmatched: Array<{ fullName: string; tag: string }> = [];
-
-      for (const [fullName, personSchedule] of Object.entries(schedule)) {
-        const tag = personSchedule[dayStr];
-        if (tag && !tagSet.has(tag)) {
-          unmatched.push({ fullName, tag });
-        }
-      }
-
-      return unmatched;
-    },
-    [templateTags, schedule]
-  );
-
   const editAssignment = useCallback(
-    (day: number, tag: string, fullName: string) => {
-      setEdits((prev) => ({ ...prev, [`${day}::${tag}`]: fullName }));
+    (day: string, tag: string, value: string) => {
+      setEdits((prev) => ({ ...prev, [`${day}::${tag}`]: value }));
     },
     []
   );
 
-  const clearAssignment = useCallback((day: number, tag: string) => {
+  const clearAssignment = useCallback((day: string, tag: string) => {
     setEdits((prev) => ({ ...prev, [`${day}::${tag}`]: "" }));
   }, []);
 
   const getExportData = useCallback(
     (
-      fromDay: number,
-      toDay: number
+      fromDay: string,
+      toDay: string
     ): Record<string, Record<string, string>> => {
-      const dayDataMap: Record<string, Record<string, string>> = {};
+      const fromNum = Number(fromDay);
+      const toNum = Number(toDay);
+      const result: Record<string, Record<string, string>> = {};
 
-      // Only export days that actually exist in the Excel
       for (const day of availableDays) {
-        if (day >= fromDay && day <= toDay) {
-          dayDataMap[String(day)] = getDayAssignments(day);
+        const num = Number(day);
+        if (num >= fromNum && num <= toNum) {
+          result[day] = getDayAssignments(day);
         }
       }
 
-      return dayDataMap;
+      return result;
     },
     [availableDays, getDayAssignments]
   );
@@ -213,15 +177,14 @@ export function RosterProvider({
         templateTags,
         setTemplate,
         clearTemplate,
-        personnel,
         schedule,
+        tagDescriptions,
         availableDays,
         setExcelData,
         clearExcel,
         selectedDay,
         setSelectedDay,
         getDayAssignments,
-        getUnmatchedPersonnel,
         editAssignment,
         clearAssignment,
         getExportData,

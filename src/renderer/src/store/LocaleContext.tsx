@@ -16,7 +16,7 @@ export function LocaleProvider({
 }: {
   children: ReactNode;
 }): JSX.Element {
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>("el");
 
   return (
     <LocaleContext.Provider value={{ locale, setLocale, t: t(locale) }}>

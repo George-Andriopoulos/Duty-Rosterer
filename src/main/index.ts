@@ -46,7 +46,6 @@ app.whenReady().then(() => {
 
   // ==========================================
   // 1) SELECT & SCAN WORD TEMPLATE
-  //    Opens a .docx, extracts every {tag}
   // ==========================================
   ipcMain.handle("select-and-scan-template", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -58,18 +57,15 @@ app.whenReady().then(() => {
       ],
     });
 
-    if (canceled || filePaths.length === 0) {
-      return { success: false };
-    }
+    if (canceled || filePaths.length === 0) return { success: false };
 
     const templatePath = filePaths[0];
 
-    // Docxtemplater only supports .docx (ZIP-based) — reject .doc with a helpful message
     if (!templatePath.toLowerCase().endsWith(".docx")) {
       return {
         success: false,
         error:
-          "Only .docx files are supported. Please open your .doc file in Word or LibreOffice and Save As → Word 2010-365 (.docx).",
+          "Μόνο αρχεία .docx υποστηρίζονται. Ανοίξτε το .doc στο Word/LibreOffice → Αποθήκευση ως → Word 2010-365 (.docx).",
       };
     }
 
@@ -89,12 +85,10 @@ app.whenReady().then(() => {
         tags.push(match[1]);
       }
 
-      const uniqueTags = [...new Set(tags)];
-
       return {
         success: true,
         filePath: templatePath,
-        tags: uniqueTags,
+        tags: [...new Set(tags)],
       };
     } catch (error) {
       console.error("Template scan error:", error);
@@ -103,9 +97,12 @@ app.whenReady().then(() => {
   });
 
   // ==========================================
-  // 2) SELECT & PARSE EXCEL SCHEDULE
-  //    Header row: Name | Rank | 1 | 2 | ... | 31
-  //    Data rows:  ΞΕΝΟΥ | ΑΡΧ. | kentro_rt_06 | day_off | ...
+  // 2) SELECT & PARSE EXCEL — POSITION-BASED
+  //    Format:
+  //    Row 0 (header): TAG | DESCRIPTION | 1 | 2 | 3 | ... | 31
+  //    Row 1+:         kentro_rt_06 | ΚΕΝΤΡΟ R/T 06-14 | ΑΡΧ. ΣΧΟΙΝΑΣ | ...
+  //
+  //    Output: schedule[dayNumber] = { tag: name, ... }
   // ==========================================
   ipcMain.handle("select-and-parse-excel", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -117,9 +114,7 @@ app.whenReady().then(() => {
       ],
     });
 
-    if (canceled || filePaths.length === 0) {
-      return { success: false };
-    }
+    if (canceled || filePaths.length === 0) return { success: false };
 
     try {
       const workbook = XLSX.readFile(filePaths[0]);
@@ -132,40 +127,51 @@ app.whenReady().then(() => {
       });
 
       if (rows.length < 2) {
-        return { success: false, error: "Excel file appears empty." };
+        return { success: false, error: "Το αρχείο Excel φαίνεται κενό." };
       }
 
       const headers = rows[0].map((h) => String(h).trim());
-      const personnel: Array<{ name: string; rank: string }> = [];
+
+      // Day columns start at index 2 (after TAG and DESCRIPTION)
+      const dayColumns: { index: number; day: string }[] = [];
+      for (let col = 2; col < headers.length; col++) {
+        const day = String(headers[col]).trim();
+        if (day) dayColumns.push({ index: col, day });
+      }
+
+      // Build schedule: dayNumber → { tag: name }
       const schedule: Record<string, Record<string, string>> = {};
+      const tagDescriptions: Record<string, string> = {};
+
+      // Initialize each day
+      for (const dc of dayColumns) {
+        schedule[dc.day] = {};
+      }
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const name = String(row[0] || "").trim();
-        const rank = String(row[1] || "").trim();
+        const tag = String(row[0] || "").trim();
 
-        if (!name) continue;
+        if (!tag) continue; // Skip section headers / empty rows
 
-        const fullName = rank ? `${rank} ${name}` : name;
-        personnel.push({ name, rank });
-        schedule[fullName] = {};
+        const description = String(row[1] || "").trim();
+        if (description) tagDescriptions[tag] = description;
 
-        for (let col = 2; col < headers.length; col++) {
-          const day = String(headers[col]).trim();
-          const cellValue =
-            col < row.length ? String(row[col] || "").trim() : "";
-          if (cellValue) {
-            schedule[fullName][day] = cellValue;
-          }
+        for (const dc of dayColumns) {
+          const value =
+            dc.index < row.length ? String(row[dc.index] || "").trim() : "";
+          schedule[dc.day][tag] = value;
         }
       }
+
+      const dayNumbers = dayColumns.map((dc) => dc.day);
 
       return {
         success: true,
         filePath: filePaths[0],
-        personnel,
         schedule,
-        totalDays: Math.max(0, headers.length - 2),
+        tagDescriptions,
+        dayNumbers,
       };
     } catch (error) {
       console.error("Excel parse error:", error);
@@ -190,16 +196,16 @@ app.whenReady().then(() => {
     ) => {
       try {
         if (!fs.existsSync(templatePath)) {
-          return { success: false, error: "Template file not found on disk." };
+          return { success: false, error: "Το αρχείο template δεν βρέθηκε." };
         }
 
         const { canceled, filePaths } = await dialog.showOpenDialog({
-          title: "Choose Output Folder",
+          title: "Επιλέξτε φάκελο εξαγωγής",
           properties: ["openDirectory"],
         });
 
         if (canceled || filePaths.length === 0) {
-          return { success: false, error: "Cancelled by user." };
+          return { success: false, error: "Ακυρώθηκε." };
         }
 
         const outputDir = filePaths[0];

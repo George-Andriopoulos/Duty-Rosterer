@@ -1,132 +1,89 @@
-import { JSX, useState } from "react";
+import { JSX } from "react";
 
-import { useLocale } from "../store/LocaleContext";
-import { PersonnelEntry } from "../store/RosterContext";
-
-interface EditAssignmentModalProps {
-  isOpen: boolean;
-  tag: string;
-  day: number;
-  currentPerson: string;
-  personnel: PersonnelEntry[];
-  onAssign: (fullName: string) => void;
-  onClear: () => void;
-  onClose: () => void;
+interface FileUploadZoneProps {
+  icon: string;
+  title: string;
+  description: string;
+  status: string | null;
+  onClick: () => void;
+  onClear?: () => void;
 }
 
-export function EditAssignmentModal({
-  isOpen,
-  tag,
-  day,
-  currentPerson,
-  personnel,
-  onAssign,
+export function FileUploadZone({
+  icon,
+  title,
+  description,
+  status,
+  onClick,
   onClear,
-  onClose,
-}: EditAssignmentModalProps): JSX.Element | null {
-  const { t } = useLocale();
-  const [search, setSearch] = useState("");
-
-  if (!isOpen) return null;
-
-  const filtered = personnel.filter((p) =>
-    p.fullName.toLowerCase().includes(search.toLowerCase())
-  );
+}: FileUploadZoneProps): JSX.Element {
+  const isLoaded = status !== null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className={`group flex flex-1 items-center gap-4 rounded-lg border-2 border-dashed p-4 transition-all ${
+        isLoaded
+          ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+          : "border-border hover:border-slate-400 hover:bg-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800/50"
+      }`}
     >
-      <div className="bg-card border-border w-full max-w-md overflow-hidden rounded-xl border shadow-2xl">
-        <div className="border-border flex items-center justify-between border-b px-5 py-4">
-          <div>
-            <h3 className="text-main text-base font-bold">
-              {t.editAssignment}
-            </h3>
-            <p className="text-muted mt-0.5 text-xs">
-              {t.day} {day} —{" "}
-              <span className="font-mono font-semibold">{tag}</span>
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-main flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+      {/* Clickable area */}
+      <button
+        onClick={onClick}
+        className="flex flex-1 items-center gap-4 text-left active:scale-[0.98]"
+      >
+        {/* Icon */}
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xl ${
+            isLoaded
+              ? "bg-emerald-100 dark:bg-emerald-900/40"
+              : "bg-slate-100 dark:bg-slate-800"
+          }`}
+        >
+          {isLoaded ? "✓" : icon}
+        </div>
+
+        {/* Text */}
+        <div className="min-w-0 flex-1">
+          <p
+            className={`text-sm font-bold ${isLoaded ? "text-emerald-700 dark:text-emerald-400" : "text-main"}`}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
+            {title}
+          </p>
+          <p
+            className={`truncate text-xs ${isLoaded ? "text-emerald-600 dark:text-emerald-500" : "text-muted"}`}
+          >
+            {isLoaded ? status : description}
+          </p>
         </div>
+      </button>
 
-        <div className="border-border border-b px-5 py-3">
-          <input
-            type="text"
-            placeholder={t.searchPersonnel}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoFocus
-            className="text-main placeholder:text-muted w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600"
-          />
-        </div>
-
-        <div className="max-h-64 overflow-y-auto px-2 py-2">
-          {filtered.length === 0 ? (
-            <p className="text-muted px-3 py-4 text-center text-sm">
-              {t.noPersonnelFound}
-            </p>
-          ) : (
-            filtered.map((p) => {
-              const isCurrentlyAssigned = p.fullName === currentPerson;
-              return (
-                <button
-                  key={p.fullName}
-                  onClick={() => {
-                    onAssign(p.fullName);
-                    onClose();
-                  }}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                    isCurrentlyAssigned
-                      ? "bg-blue-50 font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
-                      : "text-main hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                  }`}
-                >
-                  <span className="font-medium">{p.fullName}</span>
-                  {isCurrentlyAssigned && (
-                    <span className="text-xs text-blue-500">{t.current}</span>
-                  )}
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        {currentPerson && (
-          <div className="border-border border-t px-5 py-3">
-            <button
-              onClick={() => {
-                onClear();
-                onClose();
-              }}
-              className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-            >
-              {t.clearAssignment}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Clear button — only visible when loaded */}
+      {isLoaded && onClear && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear();
+          }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-emerald-600 transition-colors hover:bg-emerald-200 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-200"
+          aria-label={`Clear ${title}`}
+          title="Clear and re-upload"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
