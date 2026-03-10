@@ -1,9 +1,11 @@
 import { JSX, useMemo, useState } from "react";
 
+import { useLocale } from "../store/LocaleContext";
 import { useRosterCache } from "../store/RosterContext";
 import { EditAssignmentModal } from "./edit-assignment-modal";
 
 export function DayReviewTable(): JSX.Element {
+  const { t } = useLocale();
   const {
     templateTags,
     personnel,
@@ -25,19 +27,16 @@ export function DayReviewTable(): JSX.Element {
     currentPerson: "",
   });
 
-  // Build the current day's assignment map
   const assignments = useMemo(
     () => getDayAssignments(selectedDay),
     [getDayAssignments, selectedDay]
   );
 
-  // Find people assigned in Excel to tags that don't exist in the template
   const unmatched = useMemo(
     () => getUnmatchedPersonnel(selectedDay),
     [getUnmatchedPersonnel, selectedDay]
   );
 
-  // Stats
   const filledCount = Object.values(assignments).filter((v) => v !== "").length;
   const totalCount = templateTags.length;
 
@@ -45,10 +44,9 @@ export function DayReviewTable(): JSX.Element {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-20">
         <div className="text-4xl">📋</div>
-        <p className="text-main text-lg font-bold">No Data Yet</p>
+        <p className="text-main text-lg font-bold">{t.noDataTitle}</p>
         <p className="text-muted max-w-sm text-center text-sm">
-          Upload a Word template and an Excel schedule above to start reviewing
-          assignments.
+          {t.noDataDesc}
         </p>
       </div>
     );
@@ -56,20 +54,19 @@ export function DayReviewTable(): JSX.Element {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Stats bar */}
       <div className="flex items-center justify-between">
         <p className="text-muted text-sm">
-          <span className="text-main font-bold">{filledCount}</span> /{" "}
-          {totalCount} positions filled
+          <span className="text-main font-bold">
+            {t.positionsFilled(filledCount, totalCount)}
+          </span>
         </p>
         {filledCount < totalCount && (
           <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-            {totalCount - filledCount} unfilled
+            {t.unfilled(totalCount - filledCount)}
           </p>
         )}
       </div>
 
-      {/* Progress bar */}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
         <div
           className="h-full rounded-full bg-emerald-500 transition-all duration-300"
@@ -80,7 +77,6 @@ export function DayReviewTable(): JSX.Element {
         />
       </div>
 
-      {/* Assignment table */}
       <div className="border-border flex-1 overflow-auto rounded-xl border">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
@@ -89,13 +85,13 @@ export function DayReviewTable(): JSX.Element {
                 #
               </th>
               <th className="border-border text-muted border-b px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase">
-                Template Tag
+                {t.templateTag}
               </th>
               <th className="border-border text-muted border-b px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase">
-                Assigned Person
+                {t.assignedPerson}
               </th>
               <th className="border-border w-20 border-b px-4 py-3 text-right text-xs font-semibold tracking-wider uppercase">
-                Edit
+                {t.edit}
               </th>
             </tr>
           </thead>
@@ -113,30 +109,23 @@ export function DayReviewTable(): JSX.Element {
                       : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
                   }`}
                 >
-                  {/* Row number */}
                   <td className="border-border text-muted border-b px-4 py-3 tabular-nums">
                     {index + 1}
                   </td>
-
-                  {/* Tag name */}
                   <td className="border-border border-b px-4 py-3">
                     <code className="text-main rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold dark:bg-slate-700">
                       {tag}
                     </code>
                   </td>
-
-                  {/* Assigned person */}
                   <td className="border-border border-b px-4 py-3">
                     {isEmpty ? (
                       <span className="text-xs font-medium text-amber-600 italic dark:text-amber-400">
-                        — Unfilled —
+                        {t.unfilledLabel}
                       </span>
                     ) : (
                       <span className="text-main font-semibold">{person}</span>
                     )}
                   </td>
-
-                  {/* Edit button */}
                   <td className="border-border border-b px-4 py-3 text-right">
                     <button
                       onClick={() =>
@@ -147,7 +136,7 @@ export function DayReviewTable(): JSX.Element {
                         })
                       }
                       className="text-muted hover:text-main rounded-md p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
-                      aria-label={`Edit ${tag}`}
+                      aria-label={`${t.edit} ${tag}`}
                     >
                       <svg
                         width="15"
@@ -171,16 +160,12 @@ export function DayReviewTable(): JSX.Element {
         </table>
       </div>
 
-      {/* Unmatched personnel warning */}
       {unmatched.length > 0 && (
         <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950/20">
           <p className="mb-2 text-sm font-bold text-orange-800 dark:text-orange-300">
-            Unmatched Assignments ({unmatched.length})
+            {t.unmatchedTitle(unmatched.length)}
           </p>
-          <p className="text-muted mb-2 text-xs">
-            These people have a tag in the Excel that doesn&apos;t match any tag
-            in your Word template:
-          </p>
+          <p className="text-muted mb-2 text-xs">{t.unmatchedDesc}</p>
           <div className="flex flex-wrap gap-2">
             {unmatched.map((u, i) => (
               <span
@@ -200,7 +185,6 @@ export function DayReviewTable(): JSX.Element {
         </div>
       )}
 
-      {/* The Edit Modal */}
       <EditAssignmentModal
         isOpen={modalState.isOpen}
         tag={modalState.tag}

@@ -1,5 +1,6 @@
 import { JSX, useState } from "react";
 
+import { useLocale } from "../store/LocaleContext";
 import { PersonnelEntry } from "../store/RosterContext";
 
 interface EditAssignmentModalProps {
@@ -23,6 +24,7 @@ export function EditAssignmentModal({
   onClear,
   onClose,
 }: EditAssignmentModalProps): JSX.Element | null {
+  const { t } = useLocale();
   const [search, setSearch] = useState("");
 
   if (!isOpen) return null;
@@ -39,12 +41,14 @@ export function EditAssignmentModal({
       }}
     >
       <div className="bg-card border-border w-full max-w-md overflow-hidden rounded-xl border shadow-2xl">
-        {/* Header */}
         <div className="border-border flex items-center justify-between border-b px-5 py-4">
           <div>
-            <h3 className="text-main text-base font-bold">Edit Assignment</h3>
+            <h3 className="text-main text-base font-bold">
+              {t.editAssignment}
+            </h3>
             <p className="text-muted mt-0.5 text-xs">
-              Day {day} — <span className="font-mono font-semibold">{tag}</span>
+              {t.day} {day} —{" "}
+              <span className="font-mono font-semibold">{tag}</span>
             </p>
           </div>
           <button
@@ -67,11 +71,10 @@ export function EditAssignmentModal({
           </button>
         </div>
 
-        {/* Search */}
         <div className="border-border border-b px-5 py-3">
           <input
             type="text"
-            placeholder="Search personnel..."
+            placeholder={t.searchPersonnel}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
@@ -79,11 +82,10 @@ export function EditAssignmentModal({
           />
         </div>
 
-        {/* Personnel list */}
         <div className="max-h-64 overflow-y-auto px-2 py-2">
           {filtered.length === 0 ? (
             <p className="text-muted px-3 py-4 text-center text-sm">
-              No personnel found
+              {t.noPersonnelFound}
             </p>
           ) : (
             filtered.map((p) => {
@@ -103,7 +105,7 @@ export function EditAssignmentModal({
                 >
                   <span className="font-medium">{p.fullName}</span>
                   {isCurrentlyAssigned && (
-                    <span className="text-xs text-blue-500">Current</span>
+                    <span className="text-xs text-blue-500">{t.current}</span>
                   )}
                 </button>
               );
@@ -111,7 +113,6 @@ export function EditAssignmentModal({
           )}
         </div>
 
-        {/* Footer with Clear button */}
         {currentPerson && (
           <div className="border-border border-t px-5 py-3">
             <button
@@ -121,7 +122,7 @@ export function EditAssignmentModal({
               }}
               className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
             >
-              Clear Assignment
+              {t.clearAssignment}
             </button>
           </div>
         )}

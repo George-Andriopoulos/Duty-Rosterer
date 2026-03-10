@@ -1,5 +1,7 @@
 import { JSX } from "react";
 
+import { useLocale } from "../store/LocaleContext";
+
 interface DayNavigatorProps {
   availableDays: number[];
   currentDay: number;
@@ -11,6 +13,7 @@ export function DayNavigator({
   currentDay,
   onDayChange,
 }: DayNavigatorProps): JSX.Element {
+  const { t } = useLocale();
   const currentIndex = availableDays.indexOf(currentDay);
   const canPrev = currentIndex > 0;
   const canNext = currentIndex < availableDays.length - 1;
@@ -27,10 +30,10 @@ export function DayNavigator({
 
       <div className="text-main flex items-baseline gap-2">
         <span className="text-xl font-black tracking-tight tabular-nums">
-          Day {currentDay}
+          {t.day} {currentDay}
         </span>
         <span className="text-muted text-xs font-medium">
-          / {availableDays.length} days
+          / {availableDays.length} {t.days}
         </span>
       </div>
 
@@ -53,7 +56,7 @@ export function DayNavigator({
             value={d}
             className="dark:bg-slate-800 dark:text-slate-200"
           >
-            Day {d}
+            {t.day} {d}
           </option>
         ))}
       </select>
