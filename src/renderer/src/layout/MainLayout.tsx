@@ -1,8 +1,7 @@
 import { JSX, ReactNode, useEffect, useState } from "react";
 
-import { DayNavigator } from "@renderer/components/day-navigator";
-import { FileUploadZone } from "@renderer/components/file-upload-zone";
-
+import { DayNavigator } from "../components/day-navigator";
+import { FileUploadZone } from "../components/file-upload-zone";
 import { useRosterCache } from "../store/RosterContext";
 
 interface MainLayoutProps {
@@ -17,14 +16,30 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     templatePath,
     templateTags,
     setTemplate,
+    clearTemplate,
     personnel,
     setExcelData,
-    totalDays,
+    clearExcel,
+    availableDays,
     selectedDay,
     setSelectedDay,
     getExportData,
     isReady,
   } = useRosterCache();
+
+  // Export range — defaults to full range of available days
+  const firstDay = availableDays.length > 0 ? availableDays[0] : 1;
+  const lastDay =
+    availableDays.length > 0 ? availableDays[availableDays.length - 1] : 1;
+
+  const [exportFrom, setExportFrom] = useState(firstDay);
+  const [exportTo, setExportTo] = useState(lastDay);
+
+  // Sync export range when Excel data changes
+  useEffect(() => {
+    setExportFrom(firstDay);
+    setExportTo(lastDay);
+  }, [firstDay, lastDay]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -48,7 +63,9 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
   const handleUploadExcel = async (): Promise<void> => {
     const result = await window.api.parseExcel();
     if (result.success && result.personnel && result.schedule) {
-      setExcelData(result.personnel, result.schedule, result.totalDays ?? 31);
+      // Extract the actual day numbers from the schedule headers
+      const dayNumbers = extractDayNumbers(result.schedule);
+      setExcelData(result.personnel, result.schedule, dayNumbers);
     } else if (result.error) {
       alert("Excel error: " + result.error);
     }
@@ -68,7 +85,15 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
 
     setIsExporting(true);
     try {
-      const dayDataMap = getExportData();
+      const dayDataMap = getExportData(exportFrom, exportTo);
+      const dayCount = Object.keys(dayDataMap).length;
+
+      if (dayCount === 0) {
+        alert("No days to export in the selected range.");
+        setIsExporting(false);
+        return;
+      }
+
       const result = await window.api.exportDays({
         templatePath,
         dayDataMap,
@@ -76,7 +101,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
 
       if (result.success) {
         alert(
-          `Done! Generated ${result.count} documents in:\n${result.outputDir}`
+          `Done! Generated ${result.count} document${result.count !== 1 ? "s" : ""} in:\n${result.outputDir}`
         );
       } else {
         alert("Export failed: " + result.error);
@@ -89,7 +114,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     }
   };
 
-  // ── Template/Excel status strings ────────
+  // ── Status strings ───────────────────────
 
   const templateStatus = templatePath
     ? `${templateTags.length} tags found`
@@ -97,8 +122,10 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
 
   const excelStatus =
     personnel.length > 0
-      ? `${personnel.length} personnel · ${totalDays} days`
+      ? `${personnel.length} personnel · ${availableDays.length} days`
       : null;
+
+  const totalDays = availableDays.length;
 
   return (
     <div className="bg-app text-main flex h-screen w-full flex-col overflow-hidden transition-colors duration-300">
@@ -128,6 +155,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
             description="Select .docx with {tags} for each position"
             status={templateStatus}
             onClick={handleUploadTemplate}
+            onClear={clearTemplate}
           />
           <FileUploadZone
             icon="📊"
@@ -135,26 +163,76 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
             description="Select .xlsx with personnel assignments"
             status={excelStatus}
             onClick={handleUploadExcel}
+            onClear={clearExcel}
           />
         </div>
       </header>
 
       {/* ── TOOLBAR (only visible when data is loaded) ── */}
       {isReady && (
-        <div className="border-border bg-card flex shrink-0 items-center justify-between border-b px-6 py-3 shadow-sm">
+        <div className="border-border bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-6 py-3 shadow-sm">
+          {/* Left: Day navigator */}
           <DayNavigator
+            availableDays={availableDays}
             currentDay={selectedDay}
-            totalDays={totalDays}
             onDayChange={setSelectedDay}
           />
 
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-wait disabled:opacity-60"
-          >
-            {isExporting ? "Exporting..." : `Export All ${totalDays} Days`}
-          </button>
+          {/* Right: Export controls */}
+          <div className="flex items-center gap-3">
+            {/* Day range selectors */}
+            <div className="flex items-center gap-2">
+              <label className="text-muted text-xs font-medium">From:</label>
+              <select
+                value={exportFrom}
+                onChange={(e) => setExportFrom(Number(e.target.value))}
+                className="text-main bg-card rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {availableDays.map((d) => (
+                  <option
+                    key={d}
+                    value={d}
+                    className="dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    Day {d}
+                  </option>
+                ))}
+              </select>
+
+              <label className="text-muted text-xs font-medium">To:</label>
+              <select
+                value={exportTo}
+                onChange={(e) => setExportTo(Number(e.target.value))}
+                className="text-main bg-card rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {availableDays
+                  .filter((d) => d >= exportFrom)
+                  .map((d) => (
+                    <option
+                      key={d}
+                      value={d}
+                      className="dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      Day {d}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isExporting
+                ? "Exporting..."
+                : exportFrom === firstDay && exportTo === lastDay
+                  ? `Export All ${totalDays} Days`
+                  : exportFrom === exportTo
+                    ? `Export Day ${exportFrom}`
+                    : `Export Days ${exportFrom}–${exportTo}`}
+            </button>
+          </div>
         </div>
       )}
 
@@ -164,4 +242,24 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
       </main>
     </div>
   );
+}
+
+/**
+ * Walks every person's schedule and collects all unique day numbers.
+ * Returns them sorted ascending. This way days come from the actual Excel data,
+ * not from a hardcoded 1-31 range.
+ */
+function extractDayNumbers(
+  schedule: Record<string, Record<string, string>>
+): number[] {
+  const daySet = new Set<number>();
+  for (const personSchedule of Object.values(schedule)) {
+    for (const dayStr of Object.keys(personSchedule)) {
+      const num = Number(dayStr);
+      if (!isNaN(num) && num > 0) {
+        daySet.add(num);
+      }
+    }
+  }
+  return Array.from(daySet).sort((a, b) => a - b);
 }
